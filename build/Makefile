@@ -301,12 +301,12 @@ ifeq ($(strip $(foreach prefix,$(NO_LOAD),\
 endif
 ifeq ($(strip $(foreach prefix,$(NO_LOAD),\
     $(findstring $(join ^,$(prefix)),\
-                 $(join ^,put.target.mk)))),)
-  include put.target.mk
+                 $(join ^,leveldbbinding.target.mk)))),)
+  include leveldbbinding.target.mk
 endif
 
 quiet_cmd_regen_makefile = ACTION Regenerating $@
-cmd_regen_makefile = /usr/local/lib/node_modules/node-gyp/gyp/gyp -fmake --ignore-environment "--toplevel-dir=." -I/home/ligolas/node-binding-0.1/build/config.gypi -I/usr/local/lib/node_modules/node-gyp/addon.gypi -I/home/ligolas/.node-gyp/0.10.19/common.gypi "--depth=." "-Goutput_dir=." "--generator-output=build" "-Dlibrary=shared_library" "-Dvisibility=default" "-Dnode_root_dir=/home/ligolas/.node-gyp/0.10.19" "-Dmodule_root_dir=/home/ligolas/node-binding-0.1" binding.gyp
+cmd_regen_makefile = /usr/local/lib/node_modules/node-gyp/gyp/gyp -fmake --ignore-environment "--toplevel-dir=." -I/home/ligolas/hyperleveldown/build/config.gypi -I/usr/local/lib/node_modules/node-gyp/addon.gypi -I/home/ligolas/.node-gyp/0.10.19/common.gypi "--depth=." "-Goutput_dir=." "--generator-output=build" "-Dlibrary=shared_library" "-Dvisibility=default" "-Dnode_root_dir=/home/ligolas/.node-gyp/0.10.19" "-Dmodule_root_dir=/home/ligolas/hyperleveldown" binding.gyp
 Makefile: $(srcdir)/deps/leveldb/leveldb.gyp $(srcdir)/../.node-gyp/0.10.19/common.gypi $(srcdir)/binding.gyp $(srcdir)/../../../usr/local/lib/node_modules/node-gyp/addon.gypi $(srcdir)/build/config.gypi $(srcdir)/deps/snappy/snappy.gyp
 	$(call do_cmd,regen_makefile)
 
