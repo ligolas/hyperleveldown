@@ -1,9 +1,3 @@
-#include "database.h"
-#include <iostream>
-
-#include <v8.h>
-
-
 #include <node.h>
 #include <node_buffer.h>
 
@@ -13,11 +7,10 @@
 
 #include "leveldbbinding.h"
 #include "database.h"
+#include "batch.h"
+#include "iterator.h"
 
-// #include "batch.h"
-// #include "iterator.h"
-
-namespace leveldbbinding {
+namespace levelbinding {
 
 
 
@@ -26,7 +19,7 @@ static v8::Persistent<v8::FunctionTemplate> database_constructor;
 Database::Database (char* location) : location(location) {
   db = NULL;
   currentIteratorId = 0;
-  pendingCloseWorker = NULL;
+  pendingCloseWorker = false;
 };
 
 Database::~Database () {
@@ -101,18 +94,25 @@ void Database::ReleaseSnapshot (const leveldb::Snapshot* snapshot) {
   return db->ReleaseSnapshot(snapshot);
 }
 
-// void Database::ReleaseIterator (uint32_t id) {
-//   // called each time an Iterator is End()ed, in the main thread
-//   // we have to remove our reference to it and if it's the last iterator
-//   // we have to invoke a pending CloseWorker if there is one
-//   // if there is a pending CloseWorker it means that we're waiting for
-//   // iterators to end before we can close them
-//   iterators.erase(id);
-//   if (iterators.empty() && pendingCloseWorker != NULL) {
-//     NanAsyncQueueWorker((AsyncWorker*)pendingCloseWorker);
-//     pendingCloseWorker = NULL;
-//   }
-// }
+void Database::ReleaseIterator (uint32_t id) {
+  // called each time an Iterator is End()ed, in the main thread
+  // we have to remove our reference to it and if it's the last iterator
+  // we have to invoke a pending CloseWorker if there is one
+  // if there is a pending CloseWorker it means that we're waiting for
+  // iterators to end before we can close them
+  NanScope();
+  iterators.erase(id);
+  if (iterators.empty() && pendingCloseWorker != false) {
+    // NanAsyncQueueWorker((AsyncWorker*)pendingCloseWorker);
+
+    //TODO:
+    v8::Local<v8::Function> callback;
+    database->CloseDatabase();
+    callback->Call(v8::Context::GetCurrent()->Global(), 0,NULL);
+    pendingCloseWorker = false; 
+  }
+  
+}
 
 void Database::CloseDatabase () {
   delete db;
@@ -143,7 +143,7 @@ void Database::Init () {
   NODE_SET_PROTOTYPE_METHOD(tpl, "batch", Database::Batch);
   NODE_SET_PROTOTYPE_METHOD(tpl, "approximateSize", Database::ApproximateSize);
   NODE_SET_PROTOTYPE_METHOD(tpl, "getProperty", Database::GetProperty);
-//NODE_SET_PROTOTYPE_METHOD(tpl, "iterator", Database::Iterator);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "iterator", Database::Iterator);
 }
 
 NAN_METHOD(Database::New) {
@@ -254,49 +254,50 @@ NAN_METHOD(Database::Close) {
   //   , new NanCallback(callback)
   // );
 
-  // if (!database->iterators.empty()) {
-  //   // yikes, we still have iterators open! naughty naughty.
-  //   // we have to queue up a CloseWorker and manually close each of them.
-  //   // the CloseWorker will be invoked once they are all cleaned up
-  //   database->pendingCloseWorker = worker;
+  if (!database->iterators.empty()) {
+    // yikes, we still have iterators open! naughty naughty.
+    // we have to queue up a CloseWorker and manually close each of them.
+    // the CloseWorker will be invoked once they are all cleaned up
+      //database->pendingCloseWorker = worker;
+      database->pendingCloseWorker=true;
+    for (
+        std::map< uint32_t, levelbinding::Iterator * >::iterator it
+            = database->iterators.begin()
+      ; it != database->iterators.end()
+      ; ++it) {
 
-  //   for (
-  //       std::map< uint32_t, leveldown::Iterator * >::iterator it
-  //           = database->iterators.begin()
-  //     ; it != database->iterators.end()
-  //     ; ++it) {
-
-  //       // for each iterator still open, first check if it's already in
-  //       // the process of ending (ended==true means an async End() is
-  //       // in progress), if not, then we call End() with an empty callback
-  //       // function and wait for it to hit ReleaseIterator() where our
-  //       // CloseWorker will be invoked
+        // for each iterator still open, first check if it's already in
+        // the process of ending (ended==true means an async End() is
+        // in progress), if not, then we call End() with an empty callback
+        // function and wait for it to hit ReleaseIterator() where our
+        // CloseWorker will be invoked
 
         
-  //       v8::Local<v8::Object> localHandle = NanPersistentToLocal(it->second);
-  //       leveldown::Iterator* iterator =
-  //           node::ObjectWrap::Unwrap<leveldown::Iterator>(localHandle->
-  //               Get(NanSymbol("iterator")).As<v8::Object>());
-                
-  //       leveldbbinding::Iterator *iterator = it->second;
 
-  //       if (!iterator->ended) {
-  //         v8::Local<v8::Function> end =
-  //             v8::Local<v8::Function>::Cast(NanObjectWrapHandle(iterator)->Get(
-  //                 v8::String::NewSymbol("end")));
-  //         v8::Local<v8::Value> argv[] = {
-  //             v8::FunctionTemplate::New()->GetFunction() // empty callback
-  //         };
-  //         v8::TryCatch try_catch;
-  //         end->Call(NanObjectWrapHandle(iterator), 1, argv);
-  //         if (try_catch.HasCaught()) {
-  //           node::FatalException(try_catch);
-  //         }
-  //       }
-  //   }
-  // } else {
-  //   NanAsyncQueueWorker(worker);
-  // }
+                
+        levelbinding::Iterator *iterator = it->second;
+
+        if (!iterator->ended) {
+          v8::Local<v8::Function> end =
+              v8::Local<v8::Function>::Cast(NanObjectWrapHandle(iterator)->Get(
+                  v8::String::NewSymbol("end")));
+          v8::Local<v8::Value> argv[] = {
+              v8::FunctionTemplate::New()->GetFunction() // empty callback
+          };
+          v8::TryCatch try_catch;
+          end->Call(NanObjectWrapHandle(iterator), 1, argv);
+          if (try_catch.HasCaught()) {
+            node::FatalException(try_catch);
+          }
+        }
+    }
+  } else {
+    database->CloseDatabase();
+
+    //TODO:need check whether it's sucessed or not
+    callback->Call(v8::Context::GetCurrent()->Global(), 0,NULL);
+
+  }
 
   NanReturnUndefined();
 }
@@ -398,7 +399,7 @@ NAN_METHOD(Database::Batch) {
     if (args.Length() > 0 && args[0]->IsObject()) {
       optionsObj = args[0].As<v8::Object>();
     }
-    // NanReturnValue(Batch::NewInstance(args.This(), optionsObj));
+    NanReturnValue(Batch::NewInstance(args.This(), optionsObj));
   }
 
   LD_METHOD_SETUP_COMMON(batch, 1, 2)
@@ -409,6 +410,7 @@ NAN_METHOD(Database::Batch) {
 
   std::vector< Reference *>* references = new std::vector< Reference *>;
   leveldb::WriteBatch* batch = new leveldb::WriteBatch();
+  leveldb::WriteOptions* options;
   bool hasData = false;
 
   for (unsigned int i = 0; i < array->Length(); i++) {
@@ -448,13 +450,12 @@ NAN_METHOD(Database::Batch) {
 
   // don't allow an empty batch through
   if (hasData) {
-    // NanAsyncQueueWorker(new BatchWorker(
-    //     database
-    //   , new NanCallback(callback)
-    //   , batch
-    //   , references
-    //   , sync
-    // ));
+    options=new leveldb::WriteOptions();
+    options->sync=sync;
+    database->status=database->WriteBatchToDatabase(options,batch);
+    if(database->status.ok()){
+      callback->Call(v8::Context::GetCurrent()->Global(),0,NULL);
+    }
   } else {
     ClearReferences(references);
     LD_RUN_CALLBACK(callback, NULL, 0);
@@ -513,8 +514,8 @@ NAN_METHOD(Database::GetProperty) {
 
   LD_STRING_OR_BUFFER_TO_SLICE(property, propertyHandle, property)
 
-  leveldbbinding::Database* database =
-      node::ObjectWrap::Unwrap<leveldbbinding::Database>(args.This());
+  levelbinding::Database* database =
+      node::ObjectWrap::Unwrap<levelbinding::Database>(args.This());
 
   std::string* value = new std::string();
   database->GetPropertyFromDatabase(property, value);
@@ -526,46 +527,46 @@ NAN_METHOD(Database::GetProperty) {
   NanReturnValue(returnValue);
 }
 
-// NAN_METHOD(Database::Iterator) {
-//   NanScope();
+NAN_METHOD(Database::Iterator) {
+  NanScope();
 
-//   Database* database = node::ObjectWrap::Unwrap<Database>(args.This());
+  Database* database = node::ObjectWrap::Unwrap<Database>(args.This());
 
-//   v8::Local<v8::Object> optionsObj;
-//   if (args.Length() > 0 && args[0]->IsObject()) {
-//     optionsObj = v8::Local<v8::Object>::Cast(args[0]);
-//   }
+  v8::Local<v8::Object> optionsObj;
+  if (args.Length() > 0 && args[0]->IsObject()) {
+    optionsObj = v8::Local<v8::Object>::Cast(args[0]);
+  }
 
-//   // each iterator gets a unique id for this Database, so we can
-//   // easily store & lookup on our `iterators` map
-//   uint32_t id = database->currentIteratorId++;
-//   v8::TryCatch try_catch;
-//   v8::Local<v8::Object> iteratorHandle = Iterator::NewInstance(
-//       args.This()
-//     , v8::Number::New(id)
-//     , optionsObj
-//   );
-//   if (try_catch.HasCaught()) {
-//     node::FatalException(try_catch);
-//   }
+  // each iterator gets a unique id for this Database, so we can
+  // easily store & lookup on our `iterators` map
+  uint32_t id = database->currentIteratorId++;
+  v8::TryCatch try_catch;
+  v8::Local<v8::Object> iteratorHandle = Iterator::NewInstance(
+      args.This()
+    , v8::Number::New(id)
+    , optionsObj
+  );
+  if (try_catch.HasCaught()) {
+    node::FatalException(try_catch);
+  }
 
-//   leveldbbinding::Iterator *iterator =
-//       node::ObjectWrap::Unwrap<leveldbbinding::Iterator>(iteratorHandle);
+  levelbinding::Iterator *iterator =
+      node::ObjectWrap::Unwrap<levelbinding::Iterator>(iteratorHandle);
 
-//   database->iterators[id] = iterator;
+  database->iterators[id] = iterator;
 
-//   // register our iterator
-//   /*
-//   v8::Local<v8::Object> obj = v8::Object::New();
-//   obj->Set(NanSymbol("iterator"), iteratorHandle);
-//   v8::Persistent<v8::Object> persistent;
-//   persistent.Reset(nan_isolate, obj);
-//   database->iterators.insert(std::pair< uint32_t, v8::Persistent<v8::Object> & >
-//       (id, persistent));
-//   */
+  // register our iterator
+  /*
+  v8::Local<v8::Object> obj = v8::Object::New();
+  obj->Set(NanSymbol("iterator"), iteratorHandle);
+  v8::Persistent<v8::Object> persistent;
+  persistent.Reset(nan_isolate, obj);
+  database->iterators.insert(std::pair< uint32_t, v8::Persistent<v8::Object> & >
+      (id, persistent));
+  */
 
-//   NanReturnValue(iteratorHandle);
-// }
+  NanReturnValue(iteratorHandle);
+}
 
 
 } // namespace leveldbbinding

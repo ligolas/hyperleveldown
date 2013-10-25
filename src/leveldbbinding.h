@@ -2,8 +2,8 @@
  * See list at <https://github.com/rvagg/node-leveldown#contributing>
  * MIT +no-false-attribs License <https://github.com/rvagg/node-leveldown/blob/master/LICENSE>
  */
-#ifndef LD_LEVELDOWN_H
-#define LD_LEVELDOWN_H
+#ifndef LD_LEVELDBBINDING_H
+#define LD_LEVELDBBINDING_H
 
 #include <node.h>
 #include <node_buffer.h>
@@ -94,8 +94,8 @@ static inline void DisposeStringOrBufferFromSlice(
 #define LD_METHOD_SETUP_COMMON(name, optionPos, callbackPos)                   \
   if (args.Length() == 0)                                                      \
     return NanThrowError(#name "() requires a callback argument");             \
-  leveldbbinding::Database* database =                                              \
-    node::ObjectWrap::Unwrap<leveldbbinding::Database>(args.This());                \
+  levelbinding::Database* database =                                              \
+    node::ObjectWrap::Unwrap<levelbinding::Database>(args.This());                \
   v8::Local<v8::Object> optionsObj;                                            \
   v8::Local<v8::Function> callback;                                            \
   if (optionPos == -1 && args[callbackPos]->IsFunction()) {                    \

@@ -2,8 +2,12 @@
   "targets": [
     {
       "target_name": "leveldbbinding",
-      "sources": [ "src/leveldbbinding.cc" 
-      			  ,"src/database.cc"
+      "sources": [  
+              
+              "src/database.cc" 
+              ,"src/iterator.cc"
+              ,"src/leveldbbinding.cc"
+              ,"src/batch.cc"
       ],
       "dependencies": [
             "<(module_root_dir)/deps/leveldb/leveldb.gyp:leveldb"

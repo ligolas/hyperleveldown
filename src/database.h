@@ -8,9 +8,11 @@
 #include "leveldb/db.h"
 #include "nan.h"
 #include "leveldbbinding.h"
+#include "iterator.h"
 
 
-namespace leveldbbinding {
+namespace levelbinding {
+
 
 NAN_METHOD(LevelDBBinding);
 
@@ -29,7 +31,7 @@ static inline void ClearReferences (std::vector<Reference *> *references) {
   for (std::vector<Reference *>::iterator it = references->begin()
       ; it != references->end()
       ; ) {
-   // DisposeStringOrBufferFromSlice((*it)->handle, (*it)->slice);
+    DisposeStringOrBufferFromSlice((*it)->handle, (*it)->slice);
     it = references->erase(it);
   }
   delete references;
@@ -75,8 +77,10 @@ private:
   leveldb::DB* db;
   char* location;
   uint32_t currentIteratorId;
-  void(*pendingCloseWorker);
+
+  bool pendingCloseWorker;
   
+  std::map< uint32_t, levelbinding::Iterator * > iterators;
   Database* database;
   leveldb::Status status;
 
@@ -93,6 +97,6 @@ private:
   static NAN_METHOD(GetProperty);
 };
 
-} // namespace leveldown
+} // namespace hyperleveldbbinding
 
 #endif

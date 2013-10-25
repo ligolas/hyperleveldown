@@ -1,53 +1,67 @@
 var leveldown=require('./build/Release/leveldbbinding')
 var db=leveldown.leveldbbinding('/tmp/testdb')
-//console.log(db)
+function test (db, method, callback) {
+    var startTime = Date.now();
+    var total = 1000000;
+    var success = 0;
+    var fail = 0;
+    var ops = [
+        { type: 'del', key: 'father' }
+      , { type: 'put', key: 'name', value: 'Yuri Irsenovich Kim' }
+      , { type: 'put', key: 'dob', value: '16 February 1941' }
+      , { type: 'put', key: 'spouse', value: 'Kim Young-sook' }
+      , { type: 'put', key: 'occupation', value: 'Clown' }
+    ]
+    var batchdone=function(error){
+        if(error)
+            return console.log(error)
+        else
+            return console.log('batch seems work fine')
+    }
+    var done = function(error, value){
+        if(error) fail++;
+        else success++
+        if(fail + success == total){
+            console.log(Date.now() - startTime,success,fail)
+            callback&&callback();
+        }
+    };
+    var iter=db.iterator()
+    var iteratorcb=function(error,key,value){
+        if(!error){
+            if(key!='hello99992'){
+                console.log('key: '+key+' value: '+value)
+                iter.next(iteratorcb)
+            }
+        }
+        else
+            console.log(error)
+    }
+
+    switch(method){
+        case 'get':
+            for(var i=0;i<total;i++){
+            db[method]('hello'+i,done);
+        }
+        break;
+        case 'put':
+            for(var i=0;i<total;i++){
+            db[method]('hello'+i,i,done);
+        }
+        break;
+        case 'iterator':
+            iter.next(iteratorcb);
+        break;
+        case 'batch':
+            db[method](ops,batchdone);
+        break;
+
+    }
+}
 db.open(function(error){
-    if(!error){
-        var putcb=function(error){
-            if(!error)
-                console.log('put success')
-            else
-                console.log(error)
-        }
-        var getcb=function(error,value){
-            if(!error)
-                console.log(value)
-            else
-                console.log(error)
-        }
-        var approximateSizecb=function(error,size){
-            if(!error){
-                console.log(size)
-            }   
-        }
-        //single put test
-        // db.put('teest','bonjur',putcb)
-
-        //get test
-        // db.get('hello900000',{asBuffer:false},getcb)
-
-        //get proterty test
-        //console.log(db.getProperty('leveldb.stats'))
-        
-        //approximateSize test
-        db.approximateSize('hello0','hello900',approximateSizecb)
-    
- //    var startTime = Date.now();
- //    var total = 10000000;
- //    var success = 0;
- //    var fail = 0;
- //    var done = function(error){
-	// if(error) fail++;
-	// else success++
-	// if(fail + success == total){
-	//     console.log(Date.now() - startTime,success,fail)
-	// } 
- //    };
-
- //    for(var i=0;i<total;i++){
-	// db.put('hello'+i,'world',done)
- //    }
-}   
+    if(error) 
+        throw 'db error';
+    test(db, 'batch'); 
 })
 
 
