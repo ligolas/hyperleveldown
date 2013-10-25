@@ -1,1 +1,0 @@
-cmd_Release/obj.target/put.node := flock ./Release/linker.lock g++ -shared -pthread -rdynamic -m64   -Wl,-soname=put.node -o Release/obj.target/put.node -Wl,--start-group Release/obj.target/put/put.o Release/obj.target/deps/leveldb/leveldb.a Release/obj.target/deps/snappy/snappy.a -Wl,--end-group 
