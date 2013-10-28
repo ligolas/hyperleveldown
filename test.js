@@ -61,7 +61,7 @@ function test (db, method, callback) {
 db.open(function(error){
     if(error) 
         throw 'db error';
-    test(db, 'batch'); 
+    test(db, 'put'); 
 })
 
 
